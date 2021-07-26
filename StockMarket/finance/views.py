@@ -3,8 +3,11 @@ from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponse, HttpResponseRedirect
 from django.contrib import messages
 
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import UserCreationForm, QuoteForm, BuyForm
 from .forms import CreateUserForm
+
+from .helpers import lookup, usd
+from .models import Cash, Purchase
 
 # Create your views here.
 
@@ -53,4 +56,36 @@ def register(request):
         
         return render(request, "finance/register.html", {
             'form': form
+        })
+
+
+def quote(request):
+    """Get stock information and its live rates"""
+    if request.method == "POST":
+
+        # using Django Form to create stock quote form
+        form = QuoteForm(request.POST)
+
+        # Here we are validating the form on the server side
+        if form.is_valid():
+            # Contacting IEX cloud API to retrieve stock information
+            stock_data = lookup(form.cleaned_data["symbol"])
+
+            # Ensure it is valid symbol
+            if not stock_data:
+                return render(request, "finance/quote.html", {
+                    "form": form,
+                    "message": "Invalid Symbol !!"
+                })
+
+            # Valid stock information will be returned and displayed by quoted.html page
+            return render(request, "finance/quoted.html", {
+                "name": stock_data["name"], 
+                "symbol": stock_data["symbol"], 
+                "price": usd(stock_data["price"]),
+            })
+
+    else:
+        return render(request, "finance/quote.html", {
+            "form": QuoteForm()
         })
