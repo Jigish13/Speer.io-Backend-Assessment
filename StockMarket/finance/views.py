@@ -139,3 +139,78 @@ def buy(request):
         return render(request, "finance/buy.html", {
             "form": BuyForm()
         })
+
+
+@login_required(login_url='login')
+def sell(request):
+    """Sell shares of stock"""
+
+    if request.method == "POST":
+        stock_symbol = request.POST.get("symbol")
+        total_shares = request.POST.get("shares")
+
+        # Ensure quote symbol was submitted
+        if not stock_symbol:
+            return render(request, "finance/sell.html", {
+                    "message": "Must Provide Symbol !!"
+                })
+
+        # Ensure total no of shares was submitted
+        if not total_shares:
+            return render(request, "finance/sell.html", {
+                    "message": "Missing Shares !!"
+                })
+
+        # Ensure total no of shares is a number
+        if not total_shares.isnumeric():
+            return render(request, "finance/sell.html", {
+                    "message": "Invalid Input !!"
+                })
+
+        # Ensure total no of shares is not less than 1 
+        if int(total_shares) < 1:
+            return render(request, "finance/sell.html", {
+                    "message": "Invalid Input !!"
+                })
+
+        # Grouping all the purchases done by user for given stock as per the total number of shares
+        purchases = request.user.purchases.all()
+        grouped_purchases = purchases.filter(stock=stock_symbol).annotate(total_shares=Sum('shares'))
+
+        total_shares = int(total_shares)
+
+        # Ensure user has the given stock
+        if len(grouped_purchases) == 0:
+            return render(request, "finance/sell.html", {
+                    "message": "You don't have this stock !!"
+                })
+
+        # Ensure user has enough shares for the given stock to sell
+        if total_shares > grouped_purchases[0].total_shares:
+            return render(request, "finance/sell.html", {
+                    "message": "Too many shares !!"
+                })
+
+        # Lookup for stock & know its current val and then sell it
+        stock_data = lookup(stock_symbol)
+
+        # Update shares column in purchase table
+        transaction = Purchase(my_user=request.user, stock=stock_symbol, shares=-total_shares, price=stock_data["price"])
+        transaction.save()
+
+        # Update in_hand_money for cash table for the given user
+        request.user.cash.in_hand_money += stock_data["price"]*total_shares
+        request.user.cash.save()
+
+        messages.success(request, str(total_shares) + " shares of " + stock_symbol + " was sold !!")
+        return HttpResponseRedirect(reverse("index"))
+    else:
+        # Allowing users to see all their purchases so that they can make informed decision about selling
+        purchases = request.user.purchases.all()
+        stocks = set()
+        for purchase in purchases:
+            stock = purchase.stock
+            stocks.add(stock)
+        return render(request, "finance/sell.html", {
+            "stocks": stocks
+        })
