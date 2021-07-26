@@ -9,6 +9,9 @@ from .forms import CreateUserForm
 from .helpers import lookup, usd
 from .models import Cash, Purchase
 
+from django.contrib.auth.decorators import login_required
+from django.urls import reverse
+
 # Create your views here.
 
 # Allowing users to login
@@ -58,7 +61,7 @@ def register(request):
             'form': form
         })
 
-
+@login_required(login_url='login')
 def quote(request):
     """Get stock information and its live rates"""
     if request.method == "POST":
@@ -88,4 +91,51 @@ def quote(request):
     else:
         return render(request, "finance/quote.html", {
             "form": QuoteForm()
+        })
+
+@login_required(login_url='login')
+def buy(request):
+    """Buy shares of stock"""
+    if request.method == "POST":
+        form = BuyForm(request.POST)
+
+        if form.is_valid():
+
+            stock_symbol = form.cleaned_data["symbol"]
+            total_shares = form.cleaned_data["shares"]
+            
+            # Calling API to get stock information
+            stock_data = lookup(stock_symbol)
+
+            # Ensure it is valid symbol
+            if not stock_data:
+                return render(request, "finance/buy.html", {
+                    "form": form,
+                    "message": "Invalid Symbol !!"
+                })
+
+            # Ensure user has enough cash to purchase shares
+            stock_price = stock_data["price"]
+            total_cost = float(stock_price) * int(total_shares)
+
+            if float(request.user.cash.in_hand_money) < total_cost:
+                return render(request, "finance/buy.html", {
+                    "form": form,
+                    "message": "Sorry you don't have enough cash !!"
+                })
+
+            # Commit a transaction for the user and insert data in Purchase table/model
+            transaction = Purchase(my_user=request.user, stock=stock_symbol, shares=total_shares, price=stock_price)
+            transaction.save()
+
+            # Update in_hand_money for cash table for the given user
+            request.user.cash.in_hand_money -= total_cost
+            request.user.cash.save()
+
+            messages.success(request, str(total_shares) + " shares of " + stock_symbol + " was bought !!")
+            return HttpResponseRedirect(reverse("index"))
+
+    else:
+        return render(request, "finance/buy.html", {
+            "form": BuyForm()
         })
