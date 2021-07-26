@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponse, HttpResponseRedirect
 from django.contrib import messages
 
-from django.contrib.auth.forms import UserCreationForm, QuoteForm, BuyForm
+from django.contrib.auth.forms import UserCreationForm, QuoteForm, BuyForm, AddBalanceForm
 from .forms import CreateUserForm
 
 from .helpers import lookup, usd
@@ -243,3 +243,31 @@ def index(request):
         "cash": usd(cash),
         "purchases": grouped_purchases
     })
+
+
+
+@login_required(login_url='login')
+def add_balance(request):
+    """Add Balance to user's wallet"""
+    if request.method == "POST":
+        form = AddBalanceForm(request.POST)
+        if form.is_valid():
+
+            # Retreive the total amount of balance user wanted to add
+            add_balance = int(form.cleaned_data["add_balance"])
+            
+            # Ensure user has entered valid amount to add balance
+            if add_balance < 1:
+                return render(request, "finance/addBalance.html", {
+                    "form": form,
+                    "message": "Invalid amount entered !!"
+                })
+
+            # Update in_hand_money for cash table for the given user and add balance 
+            request.user.cash.in_hand_money += add_balance
+            request.user.cash.save()
+
+            messages.success(request, str(add_balance) + " balance was added to your wallet !!")
+            return HttpResponseRedirect(reverse("index"))
+    else:
+        return render(request, "finance/addBalance.html")
