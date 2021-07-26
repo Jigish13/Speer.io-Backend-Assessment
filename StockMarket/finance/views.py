@@ -8,6 +8,7 @@ from .forms import CreateUserForm
 
 from .helpers import lookup, usd
 from .models import Cash, Purchase
+from django.db.models import Sum
 
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse
@@ -214,3 +215,31 @@ def sell(request):
         return render(request, "finance/sell.html", {
             "stocks": stocks
         })
+
+
+# Homepage for users to see their portfolio(index.html)
+# It will display user's total cash in hand, list of all the purchases done and its total cost
+@login_required(login_url='login')
+def index(request):
+    cash = request.user.cash.in_hand_money
+    
+    # SQL Query to be executed:
+    # SELECT stock, SUM(shares) FROM purchase WHERE id = user_id GROUP BY stock ORDER BY stock
+    purchases = request.user.purchases.all()
+    grouped_purchases = purchases.values('stock').annotate(total_shares=Sum('shares')).order_by('stock')
+
+    total = cash
+    # Modifying list of purchases and adding new key-values to each purchase obj
+    for purchase in grouped_purchases:
+        stock_data = lookup(purchase["stock"])
+        purchase["stock"] = stock_data["symbol"]
+        purchase["price"] = usd(stock_data["price"])
+        purchase["name"] = stock_data["name"]
+        purchase["sum"] = usd(purchase["total_shares"] * stock_data["price"])
+        total = float(total) + float(purchase["total_shares"] * stock_data["price"])
+
+    return render(request, "finance/index.html", {
+        "total": usd(total),
+        "cash": usd(cash),
+        "purchases": grouped_purchases
+    })
