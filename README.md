@@ -2,6 +2,10 @@
 
 A **stock market tracking system** is created with an aim to complete the Backend assessment by Speer.
 
+[Link to the Backend Controller Code for the assignment](https://github.com/Jigish13/Speer.io-Backend-Assessment/blob/main/StockMarket/finance/views.py)
+
+I have got an opportunity to work on both the Frontend and Backend part of the Android App with major contributions on Android Side. [Link to the Porject!](https://github.com/Jigish13/AB)
+
 ## Specifications: 
 
 This project complies with all the requirements of the assessment.
